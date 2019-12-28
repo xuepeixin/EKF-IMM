@@ -15,7 +15,7 @@ private:
 public:
     void predict(const double& stamp);
     void update(const Eigen::VectorXd &z);
-    virtual void init(const double &stamp, const Eigen::VectorXd &x) = 0;
+    virtual void init(const double &stamp, const Eigen::VectorXd &x) {}
 
     Eigen::VectorXd x() const {return this->x_;}
     Eigen::MatrixXd P() const {return this->P_;}
@@ -40,6 +40,7 @@ public:
     }
 
     double likelihood() const {return this->likelihood_;}
+    virtual KFBase* clone() {return new KFBase(*this);}
     // virtual void init(const Eigen::MatrixXd &P, const Eigen::MatrixXd &R, const double &dt) = 0;
 protected:
     Eigen::MatrixXd F_; // 状态转移矩阵
@@ -77,8 +78,7 @@ protected:
         return angle;
     }
     
-KFBase():likelihood_(0), dt_(0),current_time_stamp_(-1){}
-virtual ~KFBase(){}
+
 };
 
 class CTRV : public KFBase

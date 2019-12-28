@@ -34,7 +34,19 @@ public:
     void updateModelProb();
     void estimateFusion();
     Eigen::VectorXd x() const {return x_;}
-    
+    IMM(const IMM& imm) {
+        transfer_prob_ = imm.transfer_prob_;
+        P_ = imm.P_;
+        X_ = imm.X_;
+        c_ = imm.c_;
+        model_prob_ = imm.model_prob_;
+        x_ = imm.x_;
+        model_num_ = imm.model_num_;
+        state_num_ = imm.state_num_;
+        for (size_t i = 0; i < imm.models_.size(); i++) {
+            std::shared_ptr<KFBase> m = std::shared_ptr<KFBase>(imm.models_[i]->clone());
+        }
+    }
     IMM();
     ~IMM();
 };
