@@ -84,7 +84,9 @@ protected:
 class CTRV : public KFBase
 {
 private:
+public:
     void init(const double &stamp, const Eigen::VectorXd &x);
+    virtual CTRV* clone() {return new CTRV(*this);}
     CTRV();
     ~CTRV();
 };
@@ -103,6 +105,7 @@ private:
     void updateMeasurement();
 public:
     void init(const double &stamp, const Eigen::VectorXd &x);
+    virtual CTRA* clone() {return new CTRA(*this);}
     CTRA();
     ~CTRA();
 };
@@ -113,6 +116,7 @@ private:
     void updateMeasurement();
 public:
     void init(const double &stamp, const Eigen::VectorXd &x);
+    virtual CV* clone() {return new CV(*this);}
     CV();
     ~CV();
 };
@@ -123,6 +127,7 @@ private:
     void updateMeasurement();
 public:
     void init(const double &stamp, const Eigen::VectorXd &x);
+    virtual CA* clone() {return new CA(*this);}
     CA();
     ~CA();
 };
@@ -134,6 +139,7 @@ private:
     const double yaw_rate_;
 public:
     void init(const double &stamp, const Eigen::VectorXd &x);
+    virtual CT* clone() {return new CT(*this);}
     CT(const double& yaw_rate);
     ~CT();
 };
