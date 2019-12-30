@@ -15,6 +15,8 @@ private:
 public:
     void predict(const double& stamp);
     void update(const Eigen::VectorXd &z);
+    void updateOnce(const double& stamp, const Eigen::VectorXd* z = nullptr);
+
     virtual void init(const double &stamp, const Eigen::VectorXd &x) {}
 
     Eigen::VectorXd x() const {return this->x_;}
@@ -38,7 +40,7 @@ public:
         if (this->dt_ < 0)
             this->dt_ = 1e-4;
     }
-
+    double stamp() const {return this->current_time_stamp_;}
     double likelihood() const {return this->likelihood_;}
     virtual KFBase* clone() {return new KFBase(*this);}
     // virtual void init(const Eigen::MatrixXd &P, const Eigen::MatrixXd &R, const double &dt) = 0;

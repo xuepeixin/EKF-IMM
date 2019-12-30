@@ -38,6 +38,14 @@ void KFBase::update(const Eigen::VectorXd &z) {
     this->P_ = this->P_ + 0.0001 * I;
 }
 
+void KFBase::updateOnce(const double& stamp, const Eigen::VectorXd* z) {
+    if (z == nullptr) {
+        predict(stamp);
+    } else {
+        predict(stamp);
+        update(*z);
+    }
+}
 
 
 CTRV::CTRV()

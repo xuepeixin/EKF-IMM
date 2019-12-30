@@ -2,7 +2,7 @@
 
 
 
-IMM::IMM():model_num_(0)               
+IMM::IMM():model_num_(0),current_time_stamp_(-1)               
 {
 }
 
@@ -87,6 +87,7 @@ void IMM::stateInteraction() {
 }
 
 void IMM::updateState(const double& stamp, const Eigen::VectorXd* z) {
+    current_time_stamp_ = stamp;
     for (size_t i = 0; i < this->model_num_; i++) {
         this->models_[i]->predict(stamp);
         if (nullptr != z) {
@@ -117,5 +118,20 @@ void IMM::estimateFusion() {
         this->P_ = this->models_[i]->P() + v * v.transpose() * this->model_prob_[i];
     }
 }
+
+void IMM::updateOnce(const double& stamp, const Eigen::VectorXd* z) {
+    if (z == nullptr) {
+        stateInteraction();
+        updateState(stamp);
+        estimateFusion();
+    } else {
+        stateInteraction();
+        updateState(stamp, z);
+        updateModelProb();
+        estimateFusion();
+    }
+
+}
+
 
 

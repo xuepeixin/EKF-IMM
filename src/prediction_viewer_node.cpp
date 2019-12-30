@@ -66,6 +66,7 @@ visualization_msgs::MarkerArray getTrajVis(vec_map_cpp_msgs::GetPredictedTraject
     return markers;
 }
 
+
 Eigen::VectorXd generateIMMState(
     const geometry_msgs::PoseStamped& geo_pose, 
     const ibeo_msgs::Object2280& object) {
@@ -89,6 +90,21 @@ Eigen::VectorXd generateCTRState(
     return x;
 }
 
+template<typename T>
+void generatePathFromState(
+    const std::shared_ptr<T>& model, 
+    const double& predict_time, 
+    path_planning_msgs::Curve* path_ptr) {
+    
+    std::shared_ptr<T> model_copy = std::shared_ptr<T>(model->copy());
+    const double t0 = model_copy->stamp();
+    double t1 = t0;
+    const double dt = 0.1;
+    while (model_copy->stamp() < t0 + predict_time) {
+        
+        model_copy->updateOnce();
+    }
+}
 
 void updatePathsEstimated(const geometry_msgs::PoseStamped& geo_pose, const ibeo_msgs::Object2280& object) {
     double speed = std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y);
@@ -167,6 +183,8 @@ void updatePaths(const geometry_msgs::PoseStamped& geo_pose, const int& id) {
     // std::cout << g_obstacle_paths.size() << std::endl;
 }
 
+
+
 void objCallback(ibeo_msgs::ObjectData2280ConstPtr msgs)
 {
     tf::StampedTransform transformer;
@@ -217,6 +235,7 @@ void objCallback(ibeo_msgs::ObjectData2280ConstPtr msgs)
         
         srv.request.current_pose = *(g_obstacle_paths_estimated[object.id].poses.end()-1);
         Eigen::VectorXd x = g_obstacle_models[object.id]->x();
+
         srv.request.speed = x(3);
         srv.request.yaw_rate = x(4);
         srv.request.accelaration = x(5);

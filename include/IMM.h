@@ -21,7 +21,7 @@ private:
     Eigen::VectorXd x_;
     size_t model_num_;
     size_t state_num_;
-
+    double current_time_stamp_;
 public:
     void addModel(const std::shared_ptr<KFBase>& model);
     void init(
@@ -33,6 +33,7 @@ public:
     void updateState(const double& stamp, const Eigen::VectorXd* z = nullptr);
     void updateModelProb();
     void estimateFusion();
+    void updateOnce(const double& stamp, const Eigen::VectorXd* z = nullptr);
     Eigen::VectorXd x() const {return x_;}
     IMM(const IMM& imm) {
         transfer_prob_ = imm.transfer_prob_;
@@ -47,6 +48,9 @@ public:
             std::shared_ptr<KFBase> m = std::shared_ptr<KFBase>(imm.models_[i]->clone());
         }
     }
+    double stamp() const {return current_time_stamp_;}
+    IMM* clone() {return new IMM(*this);}
+
     IMM();
     ~IMM();
 };
