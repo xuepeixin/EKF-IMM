@@ -9,7 +9,7 @@
 #include "EKF.h"
 
 
-class IMM
+class IMM 
 {
 private:
     std::vector<std::shared_ptr<KFBase>> models_;
@@ -46,6 +46,7 @@ public:
         state_num_ = imm.state_num_;
         for (size_t i = 0; i < imm.models_.size(); i++) {
             std::shared_ptr<KFBase> m = std::shared_ptr<KFBase>(imm.models_[i]->clone());
+            this->models_.push_back(m);
         }
     }
     double stamp() const {return current_time_stamp_;}

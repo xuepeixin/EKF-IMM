@@ -7,6 +7,7 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Dense>
 
+
 class KFBase
 {
 private:
@@ -31,11 +32,10 @@ public:
     }
 
     void setCurrentTimeStamp(const double& stamp) {
-        std::cout << "--------------------------------" << std::endl;
-        std::cout << std::fixed << stamp << std::endl;
-        std::cout << std::fixed << this->current_time_stamp_ << std::endl;
         this->dt_ = stamp - this->current_time_stamp_;
+        std::cout << std::fixed << stamp << std::endl;
         std::cout << std::fixed << dt_ << std::endl;
+        std::cout << std::fixed << this->S().determinant() << std::endl;
         this->current_time_stamp_ = stamp;
         if (this->dt_ < 0)
             this->dt_ = 1e-4;

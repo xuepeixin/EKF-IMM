@@ -57,7 +57,6 @@ void IMM::stateInteraction() {
             this->c_(j) += this->transfer_prob_(i, j) * this->model_prob_(i);
         }
     }
-
     // u(i,j) = 1 / c(j) * transfer_prob(i,j) * model_prob(i)
     // X(j) = sum_i(X(i) * U(i, j))
 
@@ -65,6 +64,7 @@ void IMM::stateInteraction() {
     for (size_t i = 0; i < model_num_; i++) {
         this->X_.col(i) = this->models_[i]->x();
     }
+
     Eigen::MatrixXd X = this->X_;
     this->X_.fill(0);
     for (size_t j = 0; j < this->model_num_; j++) {
@@ -73,7 +73,6 @@ void IMM::stateInteraction() {
             this->X_.col(j) += X.col(i) * U(i, j);
         }
     } 
-
 
     for (size_t i = 0; i < this->model_num_; i++) {
         Eigen::MatrixXd P = Eigen::MatrixXd::Zero(this->state_num_, this->state_num_);

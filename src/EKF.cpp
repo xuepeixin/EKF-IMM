@@ -6,7 +6,6 @@
 #include <eigen3/Eigen/Dense>
 #include "EKF.h"
 
-
 void KFBase::predict(const double& stamp) {
     setCurrentTimeStamp(stamp);
     updatePrediction();
@@ -68,10 +67,14 @@ void CTRV::init(const double &stamp, const Eigen::VectorXd &x) {
                 0, 0, 1, 0, 0,
                 0, 0, 0, 1, 0;
     this->R_.resize(4, 4);
-    this->R_ << 0.0225, 0, 0, 0,
-                0, 0.0225, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 0.09;
+    // this->R_ << 0.0225, 0, 0, 0,
+    //             0, 0.0225, 0, 0,
+    //             0, 0, 1, 0,
+    //             0, 0, 0, 1;
+    this->R_ << 0.25, 0, 0, 0,
+                0, 0.25, 0, 0,
+                0, 0, 5, 0,
+                0, 0, 0, 5;
     this->x_ = x;
     this->F_.resize(5, 4);
     this->angle_mask_ = {false, false, false, false};
@@ -97,10 +100,10 @@ void CV::init(const double &stamp, const Eigen::VectorXd &x) {
     this->current_time_stamp_ = stamp;
     this->P_.setIdentity(6, 6);
     this->R_.resize(4, 4);
-    this->R_ << 0.0225, 0, 0, 0,
-                0, 0.0225, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 1;
+    this->R_ << 0.25, 0, 0, 0,
+                0, 0.25, 0, 0,
+                0, 0, 5, 0,
+                0, 0, 0, 5;
     this->x_ = x; // x, y, theta, v
     this->F_.resize(6, 6);
     this->H_.resize(4, 6);
@@ -143,7 +146,7 @@ void CV::updatePrediction() {
                                     0,                  0,
                                     0,                  0;                    
         Eigen::Matrix2d E;
-        E << 40, 0, 0, 40;
+        E << 400, 0, 0, 400;
         this->Q_ = G * E * G.transpose();
     }
     
@@ -188,10 +191,10 @@ void CA::init(const double &stamp, const Eigen::VectorXd &x) {
     this->current_time_stamp_ = stamp;
     this->P_.setIdentity(6, 6);
     this->R_.resize(4, 4);
-    this->R_ << 0.0225, 0, 0, 0,
-                0, 0.0225, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 1;
+    this->R_ << 0.25, 0, 0, 0,
+                0, 0.25, 0, 0,
+                0, 0, 5, 0,
+                0, 0, 0, 5;
     this->x_ = x; // x, y, theta, v
     this->F_.resize(6, 6);
     this->H_.resize(4, 6);      
@@ -233,7 +236,7 @@ void CA::updatePrediction() {
                                   dt_,                  0,
                                     0,                dt_;                    
         Eigen::Matrix2d E;
-        E << 40, 0, 0, 40;
+        E << 400, 0, 0, 400;
         this->Q_ = G * E * G.transpose();
     }
     
@@ -278,10 +281,10 @@ void CT::init(const double &stamp, const Eigen::VectorXd &x) {
     this->current_time_stamp_ = stamp;
     this->P_.setIdentity(6, 6);
     this->R_.resize(4, 4);
-    this->R_ << 0.0225, 0, 0, 0,
-                0, 0.0225, 0, 0,
-                0, 0, 1, 0,
-                0, 0, 0, 1;
+    this->R_ << 0.25, 0, 0, 0,
+                0, 0.25, 0, 0,
+                0, 0, 5, 0,
+                0, 0, 0, 5;
     this->x_ = x; // x, y, theta, v
     this->F_.resize(6, 6);
     this->H_.resize(4, 6);  
@@ -356,8 +359,8 @@ void CT::updatePrediction() {
                             0,                  0,
                             0,                  0;
         Eigen::Matrix2d E;
-        E << 40, 0, 
-             0, 40;
+        E << 400, 0, 
+             0, 400;
         this->Q_ = G * E * G.transpose();
     }
     
@@ -466,6 +469,10 @@ void CTRA::updatePrediction() {
     xt(5) = 0;
     this->x_ = this->x_ + xt;
 
+    for (size_t i = 0; i < angle_mask_.size(); i++) {
+        if (angle_mask_[i] == true)
+            this->x_(i) = normalizeAngle(this->x_(i)); // 使角度在-pi~+pi之间
+    }
     /*--------------------------------------------------------------------*\
     ** CALC F Jacobian Matrix
     \*--------------------------------------------------------------------*/

@@ -18,7 +18,6 @@
 #include "EKF.h"
 #include "IMM.h"
 #include "ModelGenerator.h"
-
 using namespace std;
 
 ros::Publisher pub_trajectory_predicted;
@@ -30,7 +29,8 @@ std::map<int, nav_msgs::Path>  g_obstacle_paths;
 std::map<int, nav_msgs::Path>  g_obstacle_paths_estimated;
 // std::map<int, CTRA> g_obstacle_models;
 // std::map<int, std::shared_ptr<KFBase>> g_obstacle_models;
-std::map<int, std::shared_ptr<IMM>> g_obstacle_models;
+const bool IMM_MODE = false;
+std::map<int, std::shared_ptr<KFBase>> g_obstacle_models;
 
 
 
@@ -67,42 +67,53 @@ visualization_msgs::MarkerArray getTrajVis(vec_map_cpp_msgs::GetPredictedTraject
 }
 
 
-Eigen::VectorXd generateIMMState(
-    const geometry_msgs::PoseStamped& geo_pose, 
-    const ibeo_msgs::Object2280& object) {
-
-    Eigen::VectorXd x;
-    x.resize(6);
-    double speed = std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y);
-    double vx = speed * std::cos(tf::getYaw(geo_pose.pose.orientation));
-    double vy = speed * std::sin(tf::getYaw(geo_pose.pose.orientation));
-    x << geo_pose.pose.position.x, geo_pose.pose.position.y, vx, vy, 0, 0;
-    return x;
-}
-
-Eigen::VectorXd generateCTRState(
-    const geometry_msgs::PoseStamped& geo_pose, 
-    const ibeo_msgs::Object2280& object) {
-
-    Eigen::VectorXd x;
-    x.resize(6);
-    x << geo_pose.pose.position.x, geo_pose.pose.position.y, tf::getYaw(geo_pose.pose.orientation), std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y), 0, 0;
-    return x;
-}
-
-template<typename T>
 void generatePathFromState(
-    const std::shared_ptr<T>& model, 
+    const std::shared_ptr<KFBase>& model, 
     const double& predict_time, 
     path_planning_msgs::Curve* path_ptr) {
     
-    std::shared_ptr<T> model_copy = std::shared_ptr<T>(model->copy());
+    std::shared_ptr<KFBase> model_copy = std::shared_ptr<KFBase>(model->clone());
     const double t0 = model_copy->stamp();
-    double t1 = t0;
+    const double dt = 0.1;
+    auto state = model_copy->x();
+    if (state(4) > 1 || state(4) < -1 || state(5) > 10 || state(5) < -10) {
+        state(4) = 0;
+        state(5) = 0;
+        model_copy->setState(state);
+    }
+    while (model_copy->stamp() < t0 + predict_time) {
+        path_planning_msgs::CurvePoint point;
+        auto state = model_copy->x();
+        point.x = state(0);
+        point.y = state(1);
+        point.theta = state(2);
+        point.velocity = state(3);
+        point.time = model_copy->stamp();
+
+        path_ptr->points.push_back(point);
+        model_copy->updateOnce(model_copy->stamp() + dt);
+    }
+}
+
+void generatePathFromState(
+    const std::shared_ptr<IMM>& model, 
+    const double& predict_time, 
+    path_planning_msgs::Curve* path_ptr) {
+    
+    std::shared_ptr<IMM> model_copy = std::shared_ptr<IMM>(model->clone());
+    const double t0 = model_copy->stamp();
     const double dt = 0.1;
     while (model_copy->stamp() < t0 + predict_time) {
-        
-        model_copy->updateOnce();
+        path_planning_msgs::CurvePoint point;
+        auto state = model_copy->x();
+
+        point.x = state(0);
+        point.y = state(1);
+        point.theta = atan2(state(3), state(2));
+        point.velocity = sqrt(state(2) * state(2) + state(3) * state(3));
+        point.time = model_copy->stamp();
+        path_ptr->points.push_back(point);
+        model_copy->updateOnce(model_copy->stamp() + dt);
     }
 }
 
@@ -112,15 +123,23 @@ void updatePathsEstimated(const geometry_msgs::PoseStamped& geo_pose, const ibeo
     double vy = speed * std::sin(tf::getYaw(geo_pose.pose.orientation));
     
     Eigen::VectorXd z;
+    Eigen::VectorXd x;
     z.resize(4);
-    // z << geo_pose.pose.position.x, geo_pose.pose.position.y, tf::getYaw(geo_pose.pose.orientation), std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y);
-    z << geo_pose.pose.position.x, geo_pose.pose.position.y, vx, vy;
-    auto x = generateIMMState(geo_pose, object);
+    x.resize(6);
+    if (IMM_MODE == true) {
+        z << geo_pose.pose.position.x, geo_pose.pose.position.y, vx, vy;
+        x << geo_pose.pose.position.x, geo_pose.pose.position.y, vx, vy, 0, 0;
+    } else {
+        z << geo_pose.pose.position.x, geo_pose.pose.position.y, tf::getYaw(geo_pose.pose.orientation), std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y);
+        x << geo_pose.pose.position.x, geo_pose.pose.position.y, tf::getYaw(geo_pose.pose.orientation), std::sqrt(object.absolute_velocity.x * object.absolute_velocity.x + object.absolute_velocity.y * object.absolute_velocity.y), 0, 0;
+    
+    }
         
     if (g_obstacle_paths_estimated.find(object.id) == g_obstacle_paths_estimated.end()) {  
         // auto model = ModelGenerator::generateIMMModel(0.04, x);
-        std::cout << "init: " << std::fixed << geo_pose.header.stamp.toSec() << std::endl;
-        auto model = ModelGenerator::generateIMMModel(geo_pose.header.stamp.toSec(), x);
+        // auto model = ModelGenerator::generateIMMModel(geo_pose.header.stamp.toSec(), x);
+        auto model = ModelGenerator::generateCTRAModel(geo_pose.header.stamp.toSec(), x);
+
 
         g_obstacle_models[object.id] = model;
         nav_msgs::Path path;
@@ -131,11 +150,7 @@ void updatePathsEstimated(const geometry_msgs::PoseStamped& geo_pose, const ibeo
         const geometry_msgs::PoseStamped& pre_pose = *(g_obstacle_paths_estimated[object.id].poses.end()-1);
         if (std::sqrt(pow(geo_pose.pose.position.x - pre_pose.pose.position.x, 2) + pow(geo_pose.pose.position.y - pre_pose.pose.position.y, 2)) < 5) {
             
-            std::cout << "update: " << std::fixed << geo_pose.header.stamp.toSec() << std::endl;
-            g_obstacle_models[object.id]->stateInteraction();
-            g_obstacle_models[object.id]->updateState(geo_pose.header.stamp.toSec(), &z);
-            g_obstacle_models[object.id]->updateModelProb();
-            g_obstacle_models[object.id]->estimateFusion();
+            g_obstacle_models[object.id]->updateOnce(geo_pose.header.stamp.toSec(), &z);
 
             // g_obstacle_models[object.id]->predict(geo_pose.header.stamp.toSec());
             // g_obstacle_models[object.id]->update(z);
@@ -144,8 +159,12 @@ void updatePathsEstimated(const geometry_msgs::PoseStamped& geo_pose, const ibeo
             Eigen::VectorXd ekf_state = g_obstacle_models[object.id]->x();
             ekf_pose.pose.position.x = ekf_state(0);
             ekf_pose.pose.position.y = ekf_state(1);
-            // tf::Quaternion q = tf::createQuaternionFromYaw(ekf_state(2));
-            tf::Quaternion q = tf::createQuaternionFromYaw(atan2(ekf_state(3),ekf_state(2)));
+            tf::Quaternion q;
+            if (IMM_MODE == true) {
+                q = tf::createQuaternionFromYaw(atan2(ekf_state(3),ekf_state(2)));
+            } else {
+                q = tf::createQuaternionFromYaw(ekf_state(2));
+            }
             ekf_pose.pose.orientation.w = q.w();
             ekf_pose.pose.orientation.x = q.x();
             ekf_pose.pose.orientation.y = q.y();
@@ -235,41 +254,46 @@ void objCallback(ibeo_msgs::ObjectData2280ConstPtr msgs)
         
         srv.request.current_pose = *(g_obstacle_paths_estimated[object.id].poses.end()-1);
         Eigen::VectorXd x = g_obstacle_models[object.id]->x();
-
-        srv.request.speed = x(3);
-        srv.request.yaw_rate = x(4);
-        srv.request.accelaration = x(5);
+        generatePathFromState(g_obstacle_models[object.id], 4.0, &(srv.request.path));
+        if (IMM_MODE == true) {
+            srv.request.speed = sqrt(x(2) * x(2) + x(3) * x(3));
+            srv.request.accelaration = sqrt(x(4) * x(4) + x(5) * x(5));
+        } else {
+            srv.request.speed = x(3);
+            srv.request.accelaration = x(5);
+        }
+        srv.request.yaw_rate = 0;
         srv.request.point_margin = 0.5;
-        srv.request.request_length = 50.0;                                     // request_length
+        srv.request.request_length = 80.0;                                     // request_length
         srv.request.speed_orientation = tf::getYaw(geo_pose.pose.orientation); // speed_orientation
-        // ros::Time t1 = ros::Time::now();
-        // if (raw_map_client.call(srv))
-        // {
-        //     visualization_msgs::MarkerArray markers;
-        //     std_msgs::ColorRGBA rgba;
-        //     rgba.a = 1.0;
-        //     if (srv.response.state == vec_map_cpp_msgs::GetPredictedTrajectoryResponse::HIGH_UNCERTAINTY)
-        //     {
-        //         rgba.r = 1.0;
-        //         markers = getTrajVis(srv.response, rgba);
-        //         // std::cout << "high uncertainty." << std::endl;
-        //     }
-        //     else if (srv.response.state == vec_map_cpp_msgs::GetPredictedTrajectoryResponse::NORMAL)
-        //     {
-        //         rgba.b = 1.0;
-        //         markers = getTrajVis(srv.response, rgba);
-        //         // std::cout << "normal." << std::endl;
-        //     }
-        //     else
-        //     {
-        //         // std::cout << "out map" << std::endl;
-        //     }
-        //     pub_trajectory_predicted.publish(markers);
-        // }
-        // else
-        // {
-        //     ROS_ERROR("Failed to call service vec_map_server_node");
-        // }
+        ros::Time t1 = ros::Time::now();
+        if (raw_map_client.call(srv))
+        {
+            visualization_msgs::MarkerArray markers;
+            std_msgs::ColorRGBA rgba;
+            rgba.a = 1.0;
+            if (srv.response.state == vec_map_cpp_msgs::GetPredictedTrajectoryResponse::HIGH_UNCERTAINTY)
+            {
+                rgba.r = 1.0;
+                markers = getTrajVis(srv.response, rgba);
+                // std::cout << "high uncertainty." << std::endl;
+            }
+            else if (srv.response.state == vec_map_cpp_msgs::GetPredictedTrajectoryResponse::NORMAL)
+            {
+                rgba.b = 1.0;
+                markers = getTrajVis(srv.response, rgba);
+                // std::cout << "normal." << std::endl;
+            }
+            else
+            {
+                // std::cout << "out map" << std::endl;
+            }
+            pub_trajectory_predicted.publish(markers);
+        }
+        else
+        {
+            ROS_ERROR("Failed to call service vec_map_server_node");
+        }
 
         // ROS_INFO_STREAM("predict cost: " << ros::Time::now() - t1);
     }
